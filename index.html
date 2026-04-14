@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>港鐵路線圖朗讀版</title>
+  <style>
+    :root {
+      --bg: #eef3f7;
+      --panel: #ffffff;
+      --border: #d6dce5;
+      --focus: #ffbf47;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Noto Sans HK", "PingFang HK", "Microsoft JhengHei", system-ui, sans-serif;
+      background: var(--bg);
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+
+    .map-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .map-stage {
+      position: relative;
+      width: min(100%, 1024px);
+      aspect-ratio: 1024 / 661;
+      background: #fff;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    .official-map {
+      display: block;
+      width: 100%;
+      height: 100%;
+      user-select: none;
+      -webkit-user-drag: none;
+      pointer-events: none;
+    }
+
+    .hotspot {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      border: none;
+      background: rgba(255, 255, 255, 0.01);
+      cursor: pointer;
+      transform: translate(-50%, -50%);
+      padding: 0;
+      appearance: none;
+      -webkit-appearance: none;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      z-index: 2;
+    }
+
+    @media (max-width: 768px) {
+      .hotspot {
+        width: 9px;
+        height: 9px;
+      }
+    }
+
+    .hotspot.active {
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.95),
+        0 0 0 4px rgba(0, 153, 255, 0.35);
+      transform: translate(-50%, -50%) scale(1.05);
+    }
+
+    @media (max-width: 768px) {
+      .hotspot.active {
+        box-shadow:
+          0 0 0 2px rgba(255, 255, 255, 0.95),
+          0 0 0 4px rgba(0, 153, 255, 0.35);
+        transform: translate(-50%, -50%) scale(1.05);
+      }
+    }
+
+    .hotspot:hover {
+      background: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+    }
+
+    .hotspot.active:hover {
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.95),
+        0 0 0 4px rgba(0, 153, 255, 0.35);
+    }
+
+    @media (max-width: 768px) {
+      .hotspot.active:hover {
+        box-shadow:
+          0 0 0 2px rgba(255, 255, 255, 0.95),
+          0 0 0 4px rgba(0, 153, 255, 0.35);
+      }
+    }
+
+    .hotspot:focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    .crosshair {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border: 2px solid red;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="map-card" aria-label="港鐵官方路線圖，按每個站可朗讀站名">
+      <div class="map-stage" id="mapStage">
+        <img
+          class="official-map"
+          src="https://www.mtr.com.hk/en/customer/images/services/MTR_routemap_510.jpg"
+          alt="港鐵官方路線圖"
+        />
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const stage = document.getElementById('mapStage');
+
+    // 只保留你親自校正過的站
+    const stations = [
+      // 荃灣綫
+      ['荃灣', 163, 295], ['大窩口', 214, 294], ['葵興', 257, 293], ['葵芳', 300, 294],
+      ['荔景', 340, 296], ['美孚', 380, 296], ['荔枝角', 419, 294], ['長沙灣', 461, 295],
+      ['深水埗', 503, 294], ['太子', 531, 323], ['旺角', 531, 351], ['油麻地', 531, 379],
+      ['佐敦', 529, 411], ['尖沙咀', 529, 442], ['金鐘', 499, 519], ['中環', 450, 518],
+
+      // 港島綫
+      ['堅尼地城', 252, 517], ['香港大學', 302, 518], ['西營盤', 351, 518], ['上環', 400, 518],
+      ['灣仔', 546, 518], ['銅鑼灣', 595, 518], ['天后', 644, 518], ['炮台山', 693, 518],
+      ['北角', 742, 516], ['鰂魚涌', 790, 517], ['太古', 839, 518], ['西灣河', 889, 519],
+      ['筲箕灣', 933, 552], ['杏花邨', 954, 594], ['柴灣', 954, 636],
+
+      // 觀塘綫
+      ['調景嶺', 886, 418], ['油塘', 846, 418], ['藍田', 822, 390], ['觀塘', 821, 358],
+      ['牛頭角', 821, 325], ['九龍灣', 814, 301], ['彩虹', 783, 294], ['鑽石山', 751, 296],
+      ['樂富', 649, 293], ['黃大仙', 682, 293], ['九龍塘', 618, 296], ['石硤尾', 557, 293],
+      ['何文田', 640, 404], ['黃埔', 681, 422],
+
+      // 將軍澳綫
+      ['將軍澳', 929, 421], ['坑口', 954, 367], ['寶琳', 954, 327], ['康城', 952, 456],
+
+      // 南港島綫
+      ['海洋公園', 528, 568], ['黃竹坑', 470, 594], ['利東', 395, 623], ['海怡半島', 331, 623],
+
+      // 東鐵綫
+      ['會展', 546, 497], ['紅磡', 596, 447], ['旺角東', 618, 352], ['沙田', 618, 210], ['大圍', 620, 245], ['火炭', 618, 174], ['馬場', 635, 173], ['大學', 596, 128], ['大埔墟', 544, 127],
+      ['太和', 499, 128], ['粉嶺', 453, 128], ['上水', 409, 129], ['羅湖', 364, 128], ['落馬洲', 333, 143],
+
+      // 西九龍
+      ['西九龍', 427, 436],
+
+      // 屯馬綫（西段，你校正）
+      ['屯門', 109, 232], ['兆康', 109, 184], ['天水圍', 128, 123], ['朗屏', 146, 155], ['元朗', 144, 183], ['錦上路', 146, 219], ['荃灣西', 163, 258],
+
+      // 屯馬綫（中段，你校正）
+      ['柯士甸', 472, 436], ['尖東', 546, 461],
+
+      // 屯馬綫（東段，你校正）
+      ['土瓜灣', 706, 390], ['宋皇臺', 732, 365], ['啟德', 751, 326], ['顯徑', 676, 263], ['車公廟', 693, 209], ['沙田圍', 692, 174], ['第一城', 717, 127], ['石門', 763, 128], ['大水坑', 812, 128], ['恆安', 857, 127], ['馬鞍山', 905, 127], ['烏溪沙', 951, 127],
+
+      // 東涌綫
+      ['香港', 449, 502], ['九龍', 373, 437], ['奧運', 375, 391], ['南昌', 377, 336],
+      ['青衣', 287, 328], ['欣澳', 244, 378], ['東涌', 179, 438],
+
+      // 迪士尼綫
+      ['迪士尼', 273, 413],
+
+      // 機場快綫
+      ['機場', 159, 408], ['博覽館', 186, 371]
+    ];
+
+    function speakStation(name) {
+      if (!('speechSynthesis' in window)) {
+        alert('你的瀏覽器暫時不支援內建朗讀功能。');
+        return;
+      }
+
+      const speakName = name === '西九龍' ? '香港西九龍' : name;
+      const utter = new SpeechSynthesisUtterance(speakName);
+      utter.lang = 'zh-HK';
+      utter.rate = 0.9;
+      utter.pitch = 1;
+
+      try {
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+          window.speechSynthesis.cancel();
+        }
+        window.speechSynthesis.resume();
+        requestAnimationFrame(() => {
+          window.speechSynthesis.speak(utter);
+        });
+      } catch (err) {
+        console.error('Speech synthesis failed:', err);
+      }
+    }
+
+    let activeTimer = null;
+    let lastTriggerKey = '';
+    let lastTriggerTime = 0;
+
+    function activateStation(btn, name) {
+      document.querySelectorAll('.hotspot.active').forEach((el) => {
+        if (el !== btn) el.classList.remove('active');
+      });
+
+      btn.classList.add('active');
+
+      if (activeTimer) window.clearTimeout(activeTimer);
+      activeTimer = window.setTimeout(() => {
+        btn.classList.remove('active');
+      }, 900);
+
+      const triggerKey = `${name}-${Math.round(performance.now() / 100)}`;
+      const now = Date.now();
+      if (triggerKey === lastTriggerKey && now - lastTriggerTime < 150) {
+        return;
+      }
+      lastTriggerKey = triggerKey;
+      lastTriggerTime = now;
+
+      speakStation(name);
+    }
+
+    stations.forEach(([name, x, y]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'hotspot';
+      btn.style.left = `${(x / 1024) * 100}%`;
+      btn.style.top = `${(y / 661) * 100}%`;
+      btn.setAttribute('aria-label', `朗讀 ${name}`);
+      btn.title = name;
+      btn.innerHTML = `<span class="sr-only">${name}</span>`;
+
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        activateStation(btn, name);
+      });
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        activateStation(btn, name);
+      });
+
+      stage.appendChild(btn);
+    });
+  </script>
+
+  <script>
+    // 校正模式：按 C 開啟 / 關閉；按 R 清除
+    let calibrateMode = false;
+    let collectedPoints = [];
+
+    document.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+
+      if (key === 'c') {
+        calibrateMode = !calibrateMode;
+        alert(calibrateMode ? '已開啟校正模式：點擊位置會記錄座標' : '已關閉校正模式');
+      }
+
+      if (key === 'r') {
+        document.querySelectorAll('.crosshair').forEach((el) => el.remove());
+        collectedPoints = [];
+        console.clear();
+        alert('已清除所有紅點 + 座標');
+      }
+    });
+
+    stage.addEventListener('click', (e) => {
+      if (!calibrateMode) return;
+
+      const rect = stage.getBoundingClientRect();
+      const x = Math.round(((e.clientX - rect.left) / rect.width) * 1024);
+      const y = Math.round(((e.clientY - rect.top) / rect.height) * 661);
+
+      collectedPoints.push([x, y]);
+      console.log(`第${collectedPoints.length}個: ${x}, ${y}`);
+      console.log('全部座標:', JSON.stringify(collectedPoints));
+
+      const cross = document.createElement('div');
+      cross.className = 'crosshair';
+      cross.style.left = `${(x / 1024) * 100}%`;
+      cross.style.top = `${(y / 661) * 100}%`;
+      stage.appendChild(cross);
+    });
+  </script>
+</body>
+</html>
