@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>港鐵路線圖朗讀版</title>
+  <title>港鐵路線圖朗讀版（離線底圖）</title>
   <style>
     :root {
       --bg: #eef3f7;
@@ -24,6 +24,12 @@
       max-width: 1200px;
       margin: 0 auto;
       padding: 12px;
+    }
+
+    .offline-note {
+      font-size: 13px;
+      color: #5f6b7a;
+      margin-bottom: 10px;
     }
 
     .map-card {
@@ -144,12 +150,14 @@
 </head>
 <body>
   <main class="wrap">
+    <div class="offline-note">離線底圖做法：請將官方底圖下載後，放喺同一資料夾，檔名改做 <strong>mtr-map.jpg</strong>。如果未放入，網站會先用網上版本。</div>
     <section class="map-card" aria-label="港鐵官方路線圖，按每個站可朗讀站名">
       <div class="map-stage" id="mapStage">
         <img
           class="official-map"
-          src="https://www.mtr.com.hk/en/customer/images/services/MTR_routemap_510.jpg"
+          src="mtr-map.jpg"
           alt="港鐵官方路線圖"
+          onerror="this.onerror=null;this.src='https://www.mtr.com.hk/en/customer/images/services/MTR_routemap_510.jpg';"
         />
       </div>
     </section>
